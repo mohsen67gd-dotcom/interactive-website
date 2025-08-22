@@ -110,7 +110,7 @@ const SpeechToText = () => {
   };
 
   // شروع Real-time تبدیل با Web Speech API
-  const startRealTimeTranscription = async () => {
+  const startRealTimeTranscription = async (mode = 'normal') => {
     try {
       // بررسی پشتیبانی از Web Speech API
       if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -121,11 +121,37 @@ const SpeechToText = () => {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       const recognition = new SpeechRecognition();
 
-      // تنظیمات تشخیص صوت
+      // تنظیمات پیشرفته برای سرعت بیشتر
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'fa-IR';
+      recognition.maxAlternatives = 1;
+      
+      // تنظیمات اضافی برای تشخیص سریع‌تر
+      if (recognition.grammars) {
+        recognition.grammars = new SpeechGrammarList();
+      }
+      
+      // تنظیمات برای تشخیص سریع‌تر
+      if (recognition.serviceURI) {
+        recognition.serviceURI = 'https://www.google.com/speech-api/v2/recognize';
+      }
+
+      // تنظیمات تشخیص صوت - بهینه‌سازی برای سرعت بالا
       recognition.continuous = true; // تشخیص مداوم
       recognition.interimResults = true; // نتایج موقت
       recognition.lang = 'fa-IR'; // زبان فارسی
       recognition.maxAlternatives = 1;
+      
+      // تنظیمات اضافی برای سرعت بیشتر
+      if (recognition.grammars) {
+        recognition.grammars = new SpeechGrammarList();
+      }
+      
+      // تنظیمات برای تشخیص سریع‌تر
+      if (recognition.serviceURI) {
+        recognition.serviceURI = 'https://www.google.com/speech-api/v2/recognize';
+      }
 
       // دریافت stream برای نمایش سطح صدا
       const constraints = {
@@ -225,6 +251,13 @@ const SpeechToText = () => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
 
+      // انتخاب روش Real-time بر اساس mode
+      if (mode === 'ultra-fast') {
+        startUltraFastRealTime(stream);
+      } else {
+        startRealTimeAPI(stream);
+      }
+
       // شروع تشخیص صوت
       recognition.start();
 
@@ -238,12 +271,13 @@ const SpeechToText = () => {
     }
   };
 
-  // Real-time API calls
+  // Real-time API calls - بهبود یافته برای سرعت بیشتر
   const startRealTimeAPI = async (stream) => {
     try {
-      // ایجاد MediaRecorder برای Real-time
+      // ایجاد MediaRecorder برای Real-time با تنظیمات بهینه
       const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
+        mimeType: 'audio/webm;codecs=opus',
+        audioBitsPerSecond: 16000 // کاهش bitrate برای سرعت بیشتر
       });
 
       mediaRecorderRef.current = mediaRecorder;
@@ -256,10 +290,37 @@ const SpeechToText = () => {
         }
       };
 
-      // ضبط هر 3 ثانیه برای Real-time
-      mediaRecorder.start(3000);
+      // ضبط هر 1.5 ثانیه برای Real-time (سرعت بیشتر)
+      mediaRecorder.start(1500);
     } catch (error) {
       console.error('Error in real-time API:', error);
+    }
+  };
+
+  // روش جایگزین: Real-time با chunk های بسیار کوچک
+  const startUltraFastRealTime = async (stream) => {
+    try {
+      // ایجاد MediaRecorder با تنظیمات فوق سریع
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus',
+        audioBitsPerSecond: 8000, // bitrate بسیار پایین برای سرعت بیشتر
+        sampleRate: 16000 // sample rate پایین برای سرعت بیشتر
+      });
+
+      mediaRecorderRef.current = mediaRecorder;
+      chunksRef.current = [];
+
+      mediaRecorder.ondataavailable = async (event) => {
+        if (event.data.size > 0) {
+          // ارسال فوری chunk
+          await sendRealTimeChunk(event.data);
+        }
+      };
+
+      // ضبط هر 0.8 ثانیه برای سرعت فوق‌العاده
+      mediaRecorder.start(800);
+    } catch (error) {
+      console.error('Error in ultra-fast real-time:', error);
     }
   };
 
@@ -521,6 +582,15 @@ const SpeechToText = () => {
                 <Volume2 className="w-6 h-6" />
                 <span className="font-semibold">Real-time</span>
               </button>
+
+              <button
+                onClick={() => startRealTimeTranscription('ultra-fast')}
+                disabled={isTranscribing}
+                className="bg-green-500 hover:bg-green-600 text-white px-8 py-4 rounded-full flex items-center space-x-3 space-x-reverse transition-all duration-200 hover:scale-105 shadow-lg"
+              >
+                <Volume2 className="w-6 h-6" />
+                <span className="font-semibold">فوق سریع</span>
+              </button>
             </>
           ) : (
             <button
@@ -638,6 +708,10 @@ const SpeechToText = () => {
           <li className="flex items-start space-x-2 space-x-reverse">
             <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>
             <span><strong>Real-time:</strong> روی دکمه "Real-time" کلیک کنید و شروع به صحبت کنید، متن به صورت زنده تبدیل می‌شود</span>
+          </li>
+          <li className="flex items-start space-x-2 space-x-reverse">
+            <span className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></span>
+            <span><strong>فوق سریع:</strong> برای سرعت بسیار بالا، روی دکمه "فوق سریع" کلیک کنید (کلمه به کلمه)</span>
           </li>
           <li className="flex items-start space-x-2 space-x-reverse">
             <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>

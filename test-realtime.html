@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تست Real-time Speech Recognition</title>
+    <style>
+        body {
+            font-family: 'Tahoma', sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .button {
+            padding: 15px 30px;
+            margin: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-family: inherit;
+        }
+        .start-btn {
+            background: #4CAF50;
+            color: white;
+        }
+        .stop-btn {
+            background: #f44336;
+            color: white;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .listening {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+        .stopped {
+            background: #ffebee;
+            color: #c62828;
+        }
+        #transcript {
+            width: 100%;
+            height: 200px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            line-height: 1.6;
+            resize: vertical;
+        }
+        .audio-level {
+            width: 100%;
+            height: 20px;
+            background: #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .audio-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #FFC107, #FF5722);
+            width: 0%;
+            transition: width 0.1s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 تست Real-time Speech Recognition</h1>
+        
+        <div id="status" class="status stopped">
+            آماده برای شروع
+        </div>
+        
+        <div>
+            <button id="startBtn" class="button start-btn">🎙️ شروع تشخیص صوت</button>
+            <button id="stopBtn" class="button stop-btn" disabled>⏹️ توقف</button>
+            <button id="clearBtn" class="button">🗑️ پاک کردن</button>
+        </div>
+        
+        <div class="audio-level">
+            <div id="audioBar" class="audio-bar"></div>
+        </div>
+        
+        <h3>متن تشخیص داده شده:</h3>
+        <textarea id="transcript" placeholder="متن تشخیص داده شده در اینجا نمایش داده خواهد شد..."></textarea>
+        
+        <div id="info" style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 5px;">
+            <h4>📋 راهنما:</h4>
+            <ul>
+                <li>روی "شروع تشخیص صوت" کلیک کنید</li>
+                <li>مجوز دسترسی به میکروفون را بدهید</li>
+                <li>شروع به صحبت کنید</li>
+                <li>متن به صورت Real-time نمایش داده خواهد شد</li>
+                <li>برای بهترین نتیجه، واضح و آهسته صحبت کنید</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let recognition = null;
+        let isListening = false;
+        let audioContext = null;
+        let microphone = null;
+        let analyser = null;
+        let animationFrame = null;
+
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const status = document.getElementById('status');
+        const transcript = document.getElementById('transcript');
+        const audioBar = document.getElementById('audioBar');
+
+        // بررسی پشتیبانی از Web Speech API
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            status.textContent = '❌ مرورگر شما از تشخیص صوت پشتیبانی نمی‌کند';
+            status.className = 'status stopped';
+            startBtn.disabled = true;
+        } else {
+            console.log('✅ Web Speech API پشتیبانی می‌شود');
+        }
+
+        // شروع تشخیص صوت
+        startBtn.addEventListener('click', async () => {
+            try {
+                // ایجاد تشخیص صوت
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
+
+                recognition.continuous = true;
+                recognition.interimResults = true;
+                recognition.lang = 'fa-IR';
+                recognition.maxAlternatives = 1;
+
+                // رویدادها
+                recognition.onstart = () => {
+                    isListening = true;
+                    status.textContent = '🎤 در حال گوش دادن...';
+                    status.className = 'status listening';
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                    console.log('Speech recognition started');
+                };
+
+                recognition.onresult = (event) => {
+                    let finalTranscript = '';
+                    let interimTranscript = '';
+
+                    for (let i = event.resultIndex; i < event.results.length; i++) {
+                        const result = event.results[i][0].transcript;
+                        if (event.results[i].isFinal) {
+                            finalTranscript += result + ' ';
+                        } else {
+                            interimTranscript += result;
+                        }
+                    }
+
+                    if (finalTranscript) {
+                        transcript.value += finalTranscript;
+                        console.log('Final:', finalTranscript);
+                    }
+
+                    if (interimTranscript) {
+                        console.log('Interim:', interimTranscript);
+                    }
+                };
+
+                recognition.onerror = (event) => {
+                    console.error('Speech recognition error:', event.error);
+                    status.textContent = `❌ خطا: ${event.error}`;
+                    status.className = 'status stopped';
+                    
+                    if (event.error === 'not-allowed') {
+                        alert('لطفاً مجوز دسترسی به میکروفون را بدهید');
+                    }
+                };
+
+                recognition.onend = () => {
+                    if (isListening) {
+                        // شروع مجدد برای ادامه تشخیص
+                        try {
+                            recognition.start();
+                        } catch (error) {
+                            console.log('Restart error:', error);
+                        }
+                    }
+                };
+
+                // شروع تشخیص
+                recognition.start();
+
+                // راه‌اندازی تحلیل سطح صدا
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                microphone = audioContext.createMediaStreamSource(stream);
+                
+                analyser.fftSize = 256;
+                const bufferLength = analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+                
+                microphone.connect(analyser);
+
+                // نمایش سطح صدا
+                const updateAudioLevel = () => {
+                    if (isListening) {
+                        analyser.getByteFrequencyData(dataArray);
+                        const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+                        const level = Math.min(100, (average / 255) * 100);
+                        audioBar.style.width = level + '%';
+                        animationFrame = requestAnimationFrame(updateAudioLevel);
+                    }
+                };
+                updateAudioLevel();
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert('خطا در شروع تشخیص صوت: ' + error.message);
+            }
+        });
+
+        // توقف تشخیص صوت
+        stopBtn.addEventListener('click', () => {
+            isListening = false;
+            
+            if (recognition) {
+                recognition.stop();
+            }
+            
+            if (audioContext) {
+                audioContext.close();
+            }
+            
+            if (animationFrame) {
+                cancelAnimationFrame(animationFrame);
+            }
+
+            status.textContent = '⏹️ تشخیص صوت متوقف شد';
+            status.className = 'status stopped';
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            audioBar.style.width = '0%';
+        });
+
+        // پاک کردن متن
+        clearBtn.addEventListener('click', () => {
+            transcript.value = '';
+        });
+    </script>
+</body>
+</html>
