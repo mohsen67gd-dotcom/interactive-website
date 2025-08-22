@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Award, Settings, Plus, Edit, Trash2, Eye, MessageCircle, BarChart3, Shield, Activity, TrendingUp } from 'lucide-react';
+import { Users, Award, Settings, Plus, Edit, Trash2, Eye, MessageCircle, BarChart3, Shield, Activity, TrendingUp, Mic } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,6 +9,7 @@ import CreateExamModal from '../components/CreateExamModal';
 import SurveyAnalytics from '../components/SurveyAnalytics';
 import ExamAnalytics from '../components/ExamAnalytics';
 import UserManagement from '../components/UserManagement';
+import SpeechToText from '../components/SpeechToText';
 
 const AdminPanel = () => {
   const { user } = useAuth();
@@ -223,6 +224,7 @@ const AdminPanel = () => {
             { id: 'users', label: 'کاربران', icon: Users },
             { id: 'surveys', label: 'نظرسنجی‌ها', icon: MessageCircle },
             { id: 'exams', label: 'آزمون‌ها', icon: Award },
+            { id: 'speech-to-text', label: 'صوت به متن', icon: Mic },
             { id: 'settings', label: 'تنظیمات', icon: Settings }
           ].map(tab => {
             const Icon = tab.icon;
@@ -280,6 +282,15 @@ const AdminPanel = () => {
                     <Users className="w-8 h-8 text-primary-600 mb-2" />
                     <h4 className="font-medium text-gray-800">مدیریت کاربران</h4>
                     <p className="text-sm text-gray-600 mt-1">مشاهده و مدیریت کاربران</p>
+                  </button>
+                  
+                  <button
+                    onClick={() => setActiveTab('speech-to-text')}
+                    className="p-4 border border-gray-200 rounded-xl hover:border-primary-300 hover:bg-primary-50 transition-all duration-200 text-right"
+                  >
+                    <Mic className="w-8 h-8 text-primary-600 mb-2" />
+                    <h4 className="font-medium text-gray-800">تبدیل صوت به متن</h4>
+                    <p className="text-sm text-gray-600 mt-1">تبدیل صوت فارسی به متن</p>
                   </button>
                 </div>
               </div>
@@ -460,6 +471,10 @@ const AdminPanel = () => {
                 </div>
               )}
             </div>
+          )}
+
+          {activeTab === 'speech-to-text' && (
+            <SpeechToText />
           )}
 
           {activeTab === 'settings' && (

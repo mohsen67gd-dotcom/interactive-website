@@ -33,6 +33,7 @@ app.use('/api/surveys', require('./routes/surveys'));
 app.use('/api/exams', require('./routes/exams'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/settings', require('./routes/settings'));
+app.use('/api/speech-to-text', require('./routes/speechToText'));
 
 // Serve static files from React build
 if (process.env.NODE_ENV === 'production') {
