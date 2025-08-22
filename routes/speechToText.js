@@ -47,110 +47,221 @@ router.post('/transcribe', authenticateToken, requireAdmin, upload.single('audio
       });
     }
 
-    const { language = 'fa' } = req.body;
+    const { language = 'fa', realTime = 'false' } = req.body;
+    const isRealTime = realTime === 'true';
 
     console.log('Starting transcription process...');
     console.log('File size:', req.file.size);
     console.log('File type:', req.file.mimetype);
     console.log('Language:', language);
+    console.log('Real-time mode:', isRealTime);
 
-    // ایجاد job برای تبدیل صوت به متن
-    const jobData = {
-      type: 'transcription',
-      transcription_config: {
-        language: language,
-        operating_point: 'enhanced',
-        enable_partials: false,
-        max_delay: 5,
-        max_delay_mode: 'fixed'
-      }
-    };
+    if (isRealTime) {
+      // Real-time transcription با تنظیمات بهینه
+      const jobData = {
+        type: 'transcription',
+        transcription_config: {
+          language: language,
+          operating_point: 'enhanced',
+          enable_partials: true, // فعال کردن partial results برای Real-time
+          max_delay: 2, // کاهش delay برای Real-time
+          max_delay_mode: 'flexible',
+          enable_entities: false,
+          diarization: 'none',
+          speaker_diarization_sensitivity: 'low'
+        }
+      };
 
-    // ارسال فایل به Speechmatics
-    const formData = new FormData();
-    formData.append('config', JSON.stringify(jobData));
-    formData.append('data_file', req.file.buffer, {
-      filename: 'audio.' + getFileExtension(req.file.mimetype),
-      contentType: req.file.mimetype
-    });
+      // ارسال فایل به Speechmatics
+      const formData = new FormData();
+      formData.append('config', JSON.stringify(jobData));
+      formData.append('data_file', req.file.buffer, {
+        filename: 'chunk.webm',
+        contentType: req.file.mimetype
+      });
 
-    console.log('Sending request to Speechmatics...');
+      console.log('Sending real-time chunk to Speechmatics...');
 
-    const response = await axios.post(
-      `${SPEECHMATICS_BASE_URL}/jobs`,
-      formData,
-      {
-        headers: {
-          'Authorization': `Bearer ${SPEECHMATICS_API_KEY}`,
-          ...formData.getHeaders()
-        },
-        timeout: 30000 // 30 second timeout
-      }
-    );
-
-    const jobId = response.data.id;
-    console.log('Job created with ID:', jobId);
-
-    // منتظر تکمیل job
-    let jobStatus = 'running';
-    let attempts = 0;
-    const maxAttempts = 60; // حداکثر 5 دقیقه انتظار
-
-    while (jobStatus === 'running' && attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 5000)); // 5 ثانیه انتظار
-      
-      const statusResponse = await axios.get(
-        `${SPEECHMATICS_BASE_URL}/jobs/${jobId}`,
+      const response = await axios.post(
+        `${SPEECHMATICS_BASE_URL}/jobs`,
+        formData,
         {
           headers: {
-            'Authorization': `Bearer ${SPEECHMATICS_API_KEY}`
+            'Authorization': `Bearer ${SPEECHMATICS_API_KEY}`,
+            ...formData.getHeaders()
+          },
+          timeout: 15000 // 15 second timeout برای Real-time
+        }
+      );
+
+      const jobId = response.data.id;
+      console.log('Real-time job created with ID:', jobId);
+
+      // منتظر تکمیل job (زمان کمتری برای Real-time)
+      let jobStatus = 'running';
+      let attempts = 0;
+      const maxAttempts = 12; // حداکثر 1 دقیقه انتظار برای Real-time
+
+      while (jobStatus === 'running' && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 5000)); // 5 ثانیه انتظار
+        
+        const statusResponse = await axios.get(
+          `${SPEECHMATICS_BASE_URL}/jobs/${jobId}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${SPEECHMATICS_API_KEY}`
+            }
+          }
+        );
+
+        jobStatus = statusResponse.data.job.status;
+        console.log('Real-time job status:', jobStatus);
+        attempts++;
+      }
+
+      if (jobStatus !== 'done') {
+        return res.status(408).json({
+          success: false,
+          message: 'تبدیل Real-time بیش از حد انتظار طول کشید'
+        });
+      }
+
+      // دریافت نتیجه
+      const transcriptResponse = await axios.get(
+        `${SPEECHMATICS_BASE_URL}/jobs/${jobId}/transcript`,
+        {
+          headers: {
+            'Authorization': `Bearer ${SPEECHMATICS_API_KEY}`,
+            'Accept': 'application/json'
           }
         }
       );
 
-      jobStatus = statusResponse.data.job.status;
-      console.log('Job status:', jobStatus);
-      attempts++;
-    }
+      const transcript = transcriptResponse.data;
+      
+      // استخراج متن از نتیجه
+      let finalText = '';
+      if (transcript.results && transcript.results.length > 0) {
+        finalText = transcript.results
+          .map(result => result.alternatives[0].content)
+          .join(' ');
+      }
 
-    if (jobStatus !== 'done') {
-      return res.status(408).json({
-        success: false,
-        message: 'تبدیل صوت به متن بیش از حد انتظار طول کشید'
+      console.log('Real-time transcription completed successfully');
+      console.log('Final text length:', finalText.length);
+
+      res.json({
+        success: true,
+        transcript: finalText,
+        language: language,
+        confidence: transcript.results?.[0]?.alternatives?.[0]?.confidence || 0,
+        duration: transcript.job?.duration || 0,
+        isRealTime: true
+      });
+
+    } else {
+      // ضبط عادی با تنظیمات استاندارد
+      const jobData = {
+        type: 'transcription',
+        transcription_config: {
+          language: language,
+          operating_point: 'enhanced',
+          enable_partials: false,
+          max_delay: 5,
+          max_delay_mode: 'fixed',
+          enable_entities: true,
+          diarization: 'speaker',
+          speaker_diarization_sensitivity: 'medium'
+        }
+      };
+
+      // ارسال فایل به Speechmatics
+      const formData = new FormData();
+      formData.append('config', JSON.stringify(jobData));
+      formData.append('data_file', req.file.buffer, {
+        filename: 'audio.' + getFileExtension(req.file.mimetype),
+        contentType: req.file.mimetype
+      });
+
+      console.log('Sending standard audio to Speechmatics...');
+
+      const response = await axios.post(
+        `${SPEECHMATICS_BASE_URL}/jobs`,
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${SPEECHMATICS_API_KEY}`,
+            ...formData.getHeaders()
+          },
+          timeout: 30000 // 30 second timeout
+        }
+      );
+
+      const jobId = response.data.id;
+      console.log('Standard job created with ID:', jobId);
+
+      // منتظر تکمیل job
+      let jobStatus = 'running';
+      let attempts = 0;
+      const maxAttempts = 60; // حداکثر 5 دقیقه انتظار
+
+      while (jobStatus === 'running' && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 5000)); // 5 ثانیه انتظار
+        
+        const statusResponse = await axios.get(
+          `${SPEECHMATICS_BASE_URL}/jobs/${jobId}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${SPEECHMATICS_API_KEY}`
+            }
+          }
+        );
+
+        jobStatus = statusResponse.data.job.status;
+        console.log('Standard job status:', jobStatus);
+        attempts++;
+      }
+
+      if (jobStatus !== 'done') {
+        return res.status(408).json({
+          success: false,
+          message: 'تبدیل صوت به متن بیش از حد انتظار طول کشید'
+        });
+      }
+
+      // دریافت نتیجه
+      const transcriptResponse = await axios.get(
+        `${SPEECHMATICS_BASE_URL}/jobs/${jobId}/transcript`,
+        {
+          headers: {
+            'Authorization': `Bearer ${SPEECHMATICS_API_KEY}`,
+            'Accept': 'application/json'
+          }
+        }
+      );
+
+      const transcript = transcriptResponse.data;
+      
+      // استخراج متن از نتیجه
+      let finalText = '';
+      if (transcript.results && transcript.results.length > 0) {
+        finalText = transcript.results
+          .map(result => result.alternatives[0].content)
+          .join(' ');
+      }
+
+      console.log('Standard transcription completed successfully');
+      console.log('Final text length:', finalText.length);
+
+      res.json({
+        success: true,
+        transcript: finalText,
+        language: language,
+        confidence: transcript.results?.[0]?.alternatives?.[0]?.confidence || 0,
+        duration: transcript.job?.duration || 0,
+        isRealTime: false
       });
     }
-
-    // دریافت نتیجه
-    const transcriptResponse = await axios.get(
-      `${SPEECHMATICS_BASE_URL}/jobs/${jobId}/transcript`,
-      {
-        headers: {
-          'Authorization': `Bearer ${SPEECHMATICS_API_KEY}`,
-          'Accept': 'application/json'
-        }
-      }
-    );
-
-    const transcript = transcriptResponse.data;
-    
-    // استخراج متن از نتیجه
-    let finalText = '';
-    if (transcript.results && transcript.results.length > 0) {
-      finalText = transcript.results
-        .map(result => result.alternatives[0].content)
-        .join(' ');
-    }
-
-    console.log('Transcription completed successfully');
-    console.log('Final text length:', finalText.length);
-
-    res.json({
-      success: true,
-      transcript: finalText,
-      language: language,
-      confidence: transcript.results?.[0]?.alternatives?.[0]?.confidence || 0,
-      duration: transcript.job?.duration || 0
-    });
 
   } catch (error) {
     console.error('Error in speech-to-text:', error);

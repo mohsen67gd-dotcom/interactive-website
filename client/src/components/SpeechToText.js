@@ -1,26 +1,46 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, MicOff, Play, Pause, Copy, Download, Upload, Settings } from 'lucide-react';
+import { Mic, MicOff, Play, Pause, Copy, Download, Upload, Settings, Volume2, VolumeX } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
 const SpeechToText = () => {
   const [isRecording, setIsRecording] = useState(false);
+  const [isRealTimeMode, setIsRealTimeMode] = useState(false);
   const [audioDevices, setAudioDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState('');
   const [transcribedText, setTranscribedText] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [audioBlob, setAudioBlob] = useState(null);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [realTimeText, setRealTimeText] = useState('');
+  const [isRealTimeTranscribing, setIsRealTimeTranscribing] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
   
   const mediaRecorderRef = useRef(null);
   const streamRef = useRef(null);
   const chunksRef = useRef([]);
   const timerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const microphoneRef = useRef(null);
+  const animationFrameRef = useRef(null);
 
   // دریافت لیست دستگاه‌های صوتی
   useEffect(() => {
     getAudioDevices();
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
   }, []);
 
   const getAudioDevices = async () => {
@@ -37,7 +57,7 @@ const SpeechToText = () => {
     }
   };
 
-  // شروع ضبط صدا
+  // شروع ضبط صدا (عادی)
   const startRecording = async () => {
     try {
       const constraints = {
@@ -89,13 +109,124 @@ const SpeechToText = () => {
     }
   };
 
+  // شروع Real-time تبدیل
+  const startRealTimeTranscription = async () => {
+    try {
+      const constraints = {
+        audio: {
+          deviceId: selectedDevice ? { exact: selectedDevice } : undefined,
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: 44100
+        }
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+
+      // ایجاد AudioContext برای تحلیل سطح صدا
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      analyserRef.current = audioContextRef.current.createAnalyser();
+      microphoneRef.current = audioContextRef.current.createMediaStreamSource(stream);
+
+      analyserRef.current.fftSize = 256;
+      const bufferLength = analyserRef.current.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      microphoneRef.current.connect(analyserRef.current);
+
+      // شروع تحلیل سطح صدا
+      const updateAudioLevel = () => {
+        analyserRef.current.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+        setAudioLevel(average);
+        animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
+      };
+      updateAudioLevel();
+
+      // شروع Real-time transcription
+      setIsRealTimeMode(true);
+      setIsRealTimeTranscribing(true);
+      setRealTimeText('');
+      setRecordingTime(0);
+
+      // شروع تایمر
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+
+      // شروع Real-time API calls
+      startRealTimeAPI(stream);
+
+      toast.success('تبدیل Real-time شروع شد');
+    } catch (error) {
+      console.error('Error starting real-time transcription:', error);
+      toast.error('خطا در شروع تبدیل Real-time');
+    }
+  };
+
+  // Real-time API calls
+  const startRealTimeAPI = async (stream) => {
+    try {
+      // ایجاد MediaRecorder برای Real-time
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus'
+      });
+
+      mediaRecorderRef.current = mediaRecorder;
+      chunksRef.current = [];
+
+      mediaRecorder.ondataavailable = async (event) => {
+        if (event.data.size > 0) {
+          // ارسال chunk به API برای Real-time transcription
+          await sendRealTimeChunk(event.data);
+        }
+      };
+
+      // ضبط هر 3 ثانیه برای Real-time
+      mediaRecorder.start(3000);
+    } catch (error) {
+      console.error('Error in real-time API:', error);
+    }
+  };
+
+  // ارسال chunk به API
+  const sendRealTimeChunk = async (audioChunk) => {
+    try {
+      const formData = new FormData();
+      formData.append('audio', audioChunk, 'chunk.webm');
+      formData.append('language', 'fa');
+      formData.append('realTime', 'true');
+
+      const response = await axios.post('/api/speech-to-text/transcribe', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      if (response.data.success) {
+        setRealTimeText(prev => prev + ' ' + response.data.transcript);
+      }
+    } catch (error) {
+      console.error('Error sending real-time chunk:', error);
+    }
+  };
+
   // توقف ضبط صدا
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
+    if (mediaRecorderRef.current && (isRecording || isRealTimeMode)) {
       mediaRecorderRef.current.stop();
       
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
+      }
+
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
       }
 
       if (timerRef.current) {
@@ -103,6 +234,9 @@ const SpeechToText = () => {
       }
 
       setIsRecording(false);
+      setIsRealTimeMode(false);
+      setIsRealTimeTranscribing(false);
+      setAudioLevel(0);
       toast.success('ضبط صدا متوقف شد');
     }
   };
@@ -114,7 +248,7 @@ const SpeechToText = () => {
     try {
       const formData = new FormData();
       formData.append('audio', audioBlob, 'recording.webm');
-      formData.append('language', 'fa'); // زبان فارسی
+      formData.append('language', 'fa');
 
       const response = await axios.post('/api/speech-to-text/transcribe', formData, {
         headers: {
@@ -140,14 +274,12 @@ const SpeechToText = () => {
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
-      // بررسی نوع فایل
       const validTypes = ['audio/wav', 'audio/mp3', 'audio/webm', 'audio/ogg', 'audio/m4a'];
       if (!validTypes.includes(file.type)) {
         toast.error('فرمت فایل پشتیبانی نمی‌شود. فرمت‌های مجاز: WAV, MP3, WebM, OGG, M4A');
         return;
       }
 
-      // بررسی حجم فایل (حداکثر 10MB)
       if (file.size > 10 * 1024 * 1024) {
         toast.error('حجم فایل نباید بیشتر از 10 مگابایت باشد');
         return;
@@ -160,8 +292,9 @@ const SpeechToText = () => {
 
   // کپی متن
   const copyText = () => {
-    if (transcribedText) {
-      navigator.clipboard.writeText(transcribedText);
+    const textToCopy = isRealTimeMode ? realTimeText : transcribedText;
+    if (textToCopy) {
+      navigator.clipboard.writeText(textToCopy);
       toast.success('متن کپی شد');
     } else {
       toast.error('متنی برای کپی وجود ندارد');
@@ -170,9 +303,10 @@ const SpeechToText = () => {
 
   // دانلود متن
   const downloadText = () => {
-    if (transcribedText) {
+    const textToDownload = isRealTimeMode ? realTimeText : transcribedText;
+    if (textToDownload) {
       const element = document.createElement('a');
-      const file = new Blob([transcribedText], { type: 'text/plain;charset=utf-8' });
+      const file = new Blob([textToDownload], { type: 'text/plain;charset=utf-8' });
       element.href = URL.createObjectURL(file);
       element.download = `transcript-${new Date().toISOString().slice(0, 10)}.txt`;
       document.body.appendChild(element);
@@ -187,6 +321,7 @@ const SpeechToText = () => {
   // پاک کردن متن
   const clearText = () => {
     setTranscribedText('');
+    setRealTimeText('');
     setAudioBlob(null);
     toast.success('متن پاک شد');
   };
@@ -196,6 +331,19 @@ const SpeechToText = () => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // نمایش سطح صدا
+  const getAudioLevelBar = () => {
+    const level = Math.min(100, (audioLevel / 255) * 100);
+    return (
+      <div className="w-full bg-gray-200 rounded-full h-2">
+        <div 
+          className="bg-green-500 h-2 rounded-full transition-all duration-100"
+          style={{ width: `${level}%` }}
+        ></div>
+      </div>
+    );
   };
 
   return (
@@ -234,7 +382,7 @@ const SpeechToText = () => {
               value={selectedDevice}
               onChange={(e) => setSelectedDevice(e.target.value)}
               className="input-field"
-              disabled={isRecording}
+              disabled={isRecording || isRealTimeMode}
             >
               {audioDevices.map((device, index) => (
                 <option key={device.deviceId} value={device.deviceId}>
@@ -256,11 +404,11 @@ const SpeechToText = () => {
                 accept="audio/*"
                 onChange={handleFileUpload}
                 className="hidden"
-                disabled={isRecording || isTranscribing}
+                disabled={isRecording || isRealTimeMode || isTranscribing}
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isRecording || isTranscribing}
+                disabled={isRecording || isRealTimeMode || isTranscribing}
                 className="btn-secondary flex items-center space-x-2 space-x-reverse"
               >
                 <Upload className="w-4 h-4" />
@@ -273,16 +421,27 @@ const SpeechToText = () => {
 
       {/* کنترل ضبط */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="flex items-center justify-center space-x-4 space-x-reverse">
-          {!isRecording ? (
-            <button
-              onClick={startRecording}
-              disabled={isTranscribing}
-              className="bg-red-500 hover:bg-red-600 text-white px-8 py-4 rounded-full flex items-center space-x-3 space-x-reverse transition-all duration-200 hover:scale-105 shadow-lg"
-            >
-              <Mic className="w-6 h-6" />
-              <span className="font-semibold">شروع ضبط</span>
-            </button>
+        <div className="flex items-center justify-center space-x-4 space-x-reverse mb-6">
+          {!isRecording && !isRealTimeMode ? (
+            <>
+              <button
+                onClick={startRecording}
+                disabled={isTranscribing}
+                className="bg-red-500 hover:bg-red-600 text-white px-8 py-4 rounded-full flex items-center space-x-3 space-x-reverse transition-all duration-200 hover:scale-105 shadow-lg"
+              >
+                <Mic className="w-6 h-6" />
+                <span className="font-semibold">ضبط عادی</span>
+              </button>
+              
+              <button
+                onClick={startRealTimeTranscription}
+                disabled={isTranscribing}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-8 py-4 rounded-full flex items-center space-x-3 space-x-reverse transition-all duration-200 hover:scale-105 shadow-lg"
+              >
+                <Volume2 className="w-6 h-6" />
+                <span className="font-semibold">Real-time</span>
+              </button>
+            </>
           ) : (
             <button
               onClick={stopRecording}
@@ -294,6 +453,17 @@ const SpeechToText = () => {
           )}
         </div>
 
+        {/* نمایش سطح صدا */}
+        {(isRecording || isRealTimeMode) && (
+          <div className="mb-4">
+            <div className="flex items-center space-x-2 space-x-reverse mb-2">
+              <Volume2 className="w-4 h-4 text-gray-600" />
+              <span className="text-sm text-gray-600">سطح صدا</span>
+            </div>
+            {getAudioLevelBar()}
+          </div>
+        )}
+
         {isTranscribing && (
           <div className="mt-4 text-center">
             <div className="inline-flex items-center space-x-2 space-x-reverse text-blue-600">
@@ -302,17 +472,30 @@ const SpeechToText = () => {
             </div>
           </div>
         )}
+
+        {isRealTimeTranscribing && (
+          <div className="mt-4 text-center">
+            <div className="inline-flex items-center space-x-2 space-x-reverse text-green-600">
+              <div className="animate-pulse">
+                <Volume2 className="w-4 h-4" />
+              </div>
+              <span>در حال تبدیل Real-time...</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* نمایش متن */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-800">متن تبدیل شده</h3>
+          <h3 className="text-lg font-semibold text-gray-800">
+            {isRealTimeMode ? 'متن Real-time' : 'متن تبدیل شده'}
+          </h3>
           
           <div className="flex items-center space-x-2 space-x-reverse">
             <button
               onClick={copyText}
-              disabled={!transcribedText}
+              disabled={!transcribedText && !realTimeText}
               className="btn-secondary flex items-center space-x-2 space-x-reverse"
               title="کپی متن"
             >
@@ -322,7 +505,7 @@ const SpeechToText = () => {
             
             <button
               onClick={downloadText}
-              disabled={!transcribedText}
+              disabled={!transcribedText && !realTimeText}
               className="btn-secondary flex items-center space-x-2 space-x-reverse"
               title="دانلود متن"
             >
@@ -332,7 +515,7 @@ const SpeechToText = () => {
             
             <button
               onClick={clearText}
-              disabled={!transcribedText}
+              disabled={!transcribedText && !realTimeText}
               className="btn-danger flex items-center space-x-2 space-x-reverse"
               title="پاک کردن متن"
             >
@@ -342,15 +525,21 @@ const SpeechToText = () => {
         </div>
 
         <textarea
-          value={transcribedText}
-          onChange={(e) => setTranscribedText(e.target.value)}
-          placeholder="متن تبدیل شده در اینجا نمایش داده خواهد شد..."
+          value={isRealTimeMode ? realTimeText : transcribedText}
+          onChange={(e) => {
+            if (isRealTimeMode) {
+              setRealTimeText(e.target.value);
+            } else {
+              setTranscribedText(e.target.value);
+            }
+          }}
+          placeholder={isRealTimeMode ? "متن Real-time در اینجا نمایش داده خواهد شد..." : "متن تبدیل شده در اینجا نمایش داده خواهد شد..."}
           className="w-full h-64 p-4 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium text-gray-800 leading-relaxed"
           style={{ direction: 'rtl' }}
         />
         
         <div className="mt-2 text-sm text-gray-500 text-left">
-          تعداد کلمات: {transcribedText.split(' ').filter(word => word.length > 0).length}
+          تعداد کلمات: {(isRealTimeMode ? realTimeText : transcribedText).split(' ').filter(word => word.length > 0).length}
         </div>
       </div>
 
@@ -364,11 +553,11 @@ const SpeechToText = () => {
           </li>
           <li className="flex items-start space-x-2 space-x-reverse">
             <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>
-            <span>روی دکمه "شروع ضبط" کلیک کنید و شروع به صحبت کنید</span>
+            <span><strong>ضبط عادی:</strong> روی دکمه "ضبط عادی" کلیک کنید و صحبت کنید، سپس روی "توقف ضبط" کلیک کنید</span>
           </li>
           <li className="flex items-start space-x-2 space-x-reverse">
             <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>
-            <span>پس از پایان صحبت، روی "توقف ضبط" کلیک کنید</span>
+            <span><strong>Real-time:</strong> روی دکمه "Real-time" کلیک کنید و شروع به صحبت کنید، متن به صورت زنده تبدیل می‌شود</span>
           </li>
           <li className="flex items-start space-x-2 space-x-reverse">
             <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>
@@ -377,6 +566,10 @@ const SpeechToText = () => {
           <li className="flex items-start space-x-2 space-x-reverse">
             <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>
             <span>متن تبدیل شده را کپی یا دانلود کنید</span>
+          </li>
+          <li className="flex items-start space-x-2 space-x-reverse">
+            <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>
+            <span><strong>نکته:</strong> حالت Real-time برای جلسات طولانی (تا 2 ساعت) مناسب است</span>
           </li>
         </ul>
       </div>

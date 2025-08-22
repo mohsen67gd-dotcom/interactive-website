@@ -132,6 +132,7 @@ const sanitizeInput = (req, res, next) => {
 module.exports = {
   requireAuth,
   requireAdmin,
+  authenticateToken: requireAuth, // Alias for backward compatibility
   authLimiter,
   generalLimiter,
   adminLimiter,
