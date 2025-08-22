@@ -109,9 +109,25 @@ const SpeechToText = () => {
     }
   };
 
-  // شروع Real-time تبدیل
+  // شروع Real-time تبدیل با Web Speech API
   const startRealTimeTranscription = async () => {
     try {
+      // بررسی پشتیبانی از Web Speech API
+      if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        toast.error('مرورگر شما از تشخیص صوت پشتیبانی نمی‌کند');
+        return;
+      }
+
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+
+      // تنظیمات تشخیص صوت
+      recognition.continuous = true; // تشخیص مداوم
+      recognition.interimResults = true; // نتایج موقت
+      recognition.lang = 'fa-IR'; // زبان فارسی
+      recognition.maxAlternatives = 1;
+
+      // دریافت stream برای نمایش سطح صدا
       const constraints = {
         audio: {
           deviceId: selectedDevice ? { exact: selectedDevice } : undefined,
@@ -137,12 +153,66 @@ const SpeechToText = () => {
 
       // شروع تحلیل سطح صدا
       const updateAudioLevel = () => {
-        analyserRef.current.getByteFrequencyData(dataArray);
-        const average = dataArray.reduce((a, b) => a + b) / bufferLength;
-        setAudioLevel(average);
-        animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
+        if (isRealTimeMode) {
+          analyserRef.current.getByteFrequencyData(dataArray);
+          const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+          setAudioLevel(average);
+          animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
+        }
       };
       updateAudioLevel();
+
+      // رویدادهای تشخیص صوت
+      recognition.onresult = (event) => {
+        let finalTranscript = '';
+        let interimTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript + ' ';
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+
+        // بروزرسانی متن
+        if (finalTranscript) {
+          setRealTimeText(prev => prev + finalTranscript);
+        }
+        
+        // نمایش متن موقت در console برای debug
+        if (interimTranscript) {
+          console.log('Interim:', interimTranscript);
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        if (event.error === 'no-speech') {
+          // سکوت طولانی - ادامه تشخیص
+          console.log('No speech detected, continuing...');
+        } else if (event.error === 'network') {
+          toast.error('خطای شبکه در تشخیص صوت');
+        } else {
+          toast.error(`خطا در تشخیص صوت: ${event.error}`);
+        }
+      };
+
+      recognition.onend = () => {
+        if (isRealTimeMode) {
+          // شروع مجدد تشخیص برای ادامه Real-time
+          try {
+            recognition.start();
+          } catch (error) {
+            console.log('Recognition restart error:', error);
+          }
+        }
+      };
+
+      recognition.onstart = () => {
+        console.log('Speech recognition started');
+      };
 
       // شروع Real-time transcription
       setIsRealTimeMode(true);
@@ -155,8 +225,11 @@ const SpeechToText = () => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
 
-      // شروع Real-time API calls
-      startRealTimeAPI(stream);
+      // شروع تشخیص صوت
+      recognition.start();
+
+      // ذخیره reference برای استفاده در توقف
+      mediaRecorderRef.current = recognition;
 
       toast.success('تبدیل Real-time شروع شد');
     } catch (error) {
@@ -215,13 +288,20 @@ const SpeechToText = () => {
   // توقف ضبط صدا
   const stopRecording = () => {
     if (mediaRecorderRef.current && (isRecording || isRealTimeMode)) {
-      mediaRecorderRef.current.stop();
+      // برای Real-time mode (Web Speech API)
+      if (isRealTimeMode && mediaRecorderRef.current.stop) {
+        mediaRecorderRef.current.stop();
+      }
+      // برای Normal recording mode (MediaRecorder)
+      else if (isRecording && mediaRecorderRef.current.stop) {
+        mediaRecorderRef.current.stop();
+      }
       
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
 
-      if (audioContextRef.current) {
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close();
       }
 
