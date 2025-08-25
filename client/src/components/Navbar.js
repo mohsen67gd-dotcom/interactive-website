@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Menu, X, Home, Info, User, Shield } from 'lucide-react';
+import { LogOut, Menu, X, Home, Info, User, Shield, Heart } from 'lucide-react';
 import axios from 'axios';
 
 const Navbar = () => {
@@ -110,6 +110,20 @@ const Navbar = () => {
                 >
                   داشبورد
                 </Link>
+                <Link 
+                  to="/profile" 
+                  className="btn-secondary text-sm px-4 py-2 hover-lift flex items-center space-x-2 space-x-reverse"
+                >
+                  <User size={16} />
+                  <span>پروفایل</span>
+                </Link>
+                <Link 
+                  to="/couple-games" 
+                  className="btn-secondary text-sm px-4 py-2 hover-lift flex items-center space-x-2 space-x-reverse"
+                >
+                  <Heart size={16} />
+                  <span>زوج‌شناسی</span>
+                </Link>
                 {user.isAdmin && (
                   <Link 
                     to="/admin" 
@@ -185,6 +199,22 @@ const Navbar = () => {
               >
                 <Info size={20} className="group-hover:scale-110 transition-transform duration-200" />
                 <span className="font-medium">درباره ما</span>
+              </Link>
+              <Link 
+                to="/profile" 
+                className="flex items-center space-x-3 space-x-reverse text-gray-700 hover:text-primary-600 hover:bg-primary-50 transition-all duration-200 py-3 px-3 rounded-lg border-b border-gray-100 group"
+                onClick={closeMobileMenu}
+              >
+                <User size={20} className="group-hover:scale-110 transition-transform duration-200" />
+                <span className="font-medium">پروفایل</span>
+              </Link>
+              <Link 
+                to="/couple-games" 
+                className="flex items-center space-x-3 space-x-reverse text-gray-700 hover:text-primary-600 hover:bg-primary-50 transition-all duration-200 py-3 px-3 rounded-lg border-b border-gray-100 group"
+                onClick={closeMobileMenu}
+              >
+                <Heart size={20} className="group-hover:scale-110 transition-transform duration-200" />
+                <span className="font-medium">زوج‌شناسی</span>
               </Link>
             </div>
 

@@ -106,6 +106,17 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// Get survey responses count
+router.get('/responses/count', async (req, res) => {
+  try {
+    const count = await SurveyResponse.countDocuments();
+    res.json({ count });
+  } catch (error) {
+    console.error('Get survey responses count error:', error);
+    res.status(500).json({ message: 'خطا در دریافت تعداد پاسخ‌ها' });
+  }
+});
+
 // Delete survey
 router.delete('/:id', async (req, res) => {
   try {

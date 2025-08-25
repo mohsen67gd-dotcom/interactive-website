@@ -17,13 +17,30 @@ router.get('/profile', requireAuth, async (req, res) => {
 // Update user profile
 router.put('/profile', requireAuth, async (req, res) => {
   try {
-    const { firstName, lastName, birthDate, gender } = req.body;
+    const { 
+      firstName, 
+      lastName, 
+      phoneNumber, 
+      nationalCode, 
+      email, 
+      address,
+      spouseFirstName,
+      spouseLastName,
+      spousePhoneNumber,
+      spouseNationalCode
+    } = req.body;
     
     const updateData = {};
-    if (firstName) updateData.firstName = firstName;
-    if (lastName) updateData.lastName = lastName;
-    if (birthDate) updateData.birthDate = birthDate;
-    if (gender) updateData.gender = gender;
+    if (firstName !== undefined) updateData.firstName = firstName;
+    if (lastName !== undefined) updateData.lastName = lastName;
+    if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
+    if (nationalCode !== undefined) updateData.nationalCode = nationalCode;
+    if (email !== undefined) updateData.email = email;
+    if (address !== undefined) updateData.address = address;
+    if (spouseFirstName !== undefined) updateData.spouseFirstName = spouseFirstName;
+    if (spouseLastName !== undefined) updateData.spouseLastName = spouseLastName;
+    if (spousePhoneNumber !== undefined) updateData.spousePhoneNumber = spousePhoneNumber;
+    if (spouseNationalCode !== undefined) updateData.spouseNationalCode = spouseNationalCode;
 
     const user = await User.findByIdAndUpdate(
       req.user._id,
@@ -31,6 +48,11 @@ router.put('/profile', requireAuth, async (req, res) => {
       { new: true, runValidators: true }
     ).select('-password');
 
+    if (!user) {
+      return res.status(404).json({ message: 'کاربر پیدا نشد' });
+    }
+
+    console.log('Updated user data:', user);
     res.json({ message: 'پروفایل با موفقیت بروزرسانی شد', user });
   } catch (error) {
     console.error('Update profile error:', error);

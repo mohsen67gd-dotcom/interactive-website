@@ -4,36 +4,43 @@ const bcrypt = require('bcryptjs');
 const userSchema = new mongoose.Schema({
   firstName: {
     type: String,
-    required: true,
+    required: false,
     trim: true
   },
   lastName: {
     type: String,
-    required: true,
+    required: false,
     trim: true
   },
   nationalCode: {
     type: String,
-    required: true,
-    unique: true,
+    required: false,
+    trim: true
+  },
+  phoneNumber: {
+    type: String,
+    required: false,
+    trim: true
+  },
+  email: {
+    type: String,
+    required: false,
     trim: true,
-    minlength: 10,
-    maxlength: 10
+    lowercase: true
+  },
+  address: {
+    type: String,
+    required: false,
+    trim: true
   },
   birthDate: {
     type: Date,
-    required: true
+    required: false
   },
   gender: {
     type: String,
     enum: ['male', 'female'],
-    required: true
-  },
-  phoneNumber: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true
+    required: false
   },
   // Spouse information
   spouseFirstName: {
@@ -49,9 +56,7 @@ const userSchema = new mongoose.Schema({
   spouseNationalCode: {
     type: String,
     required: false,
-    trim: true,
-    minlength: 10,
-    maxlength: 10
+    trim: true
   },
   spousePhoneNumber: {
     type: String,
@@ -60,7 +65,7 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: true,
+    required: false,
     minlength: 6
   },
   isAdmin: {

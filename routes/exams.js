@@ -186,6 +186,17 @@ router.post('/:id/submit', requireAuth, async (req, res) => {
   }
 });
 
+// Get exam results count
+router.get('/results/count', async (req, res) => {
+  try {
+    const count = await ExamResult.countDocuments({ completed: true });
+    res.json({ count });
+  } catch (error) {
+    console.error('Get exam results count error:', error);
+    res.status(500).json({ message: 'خطا در دریافت تعداد نتایج' });
+  }
+});
+
 // Get exam by ID - MUST come after specific routes
 router.get('/:id', async (req, res) => {
   try {

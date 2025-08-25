@@ -11,7 +11,11 @@ import Dashboard from './pages/Dashboard';
 import Survey from './pages/Survey';
 import Exam from './pages/Exam';
 import About from './pages/About';
+import CoupleGames from './pages/CoupleGames';
+import Profile from './pages/Profile';
 import AdminPanel from './pages/AdminPanel';
+import News from './pages/News';
+import NewsDetail from './pages/NewsDetail';
 import './index.css';
 
 // Protected Route Component
@@ -50,6 +54,8 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/about" element={<About />} />
+              <Route path="/news" element={<News />} />
+              <Route path="/news/:id" element={<NewsDetail />} />
               <Route 
                 path="/dashboard" 
                 element={
@@ -71,6 +77,22 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <Exam />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/couple-games" 
+                element={
+                  <ProtectedRoute>
+                    <CoupleGames />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/profile" 
+                element={
+                  <ProtectedRoute>
+                    <Profile />
                   </ProtectedRoute>
                 } 
               />

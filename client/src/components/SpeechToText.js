@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, MicOff, Play, Pause, Copy, Download, Upload, Settings, Volume2, VolumeX } from 'lucide-react';
+import { Mic, MicOff, Copy, Download, Upload, Settings, Volume2 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
@@ -10,7 +10,7 @@ const SpeechToText = () => {
   const [selectedDevice, setSelectedDevice] = useState('');
   const [transcribedText, setTranscribedText] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [audioBlob, setAudioBlob] = useState(null);
+
   const [recordingTime, setRecordingTime] = useState(0);
   const [realTimeText, setRealTimeText] = useState('');
   const [isRealTimeTranscribing, setIsRealTimeTranscribing] = useState(false);
@@ -87,7 +87,6 @@ const SpeechToText = () => {
 
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        setAudioBlob(audioBlob);
         
         // تبدیل به متن
         transcribeAudio(audioBlob);
@@ -128,14 +127,14 @@ const SpeechToText = () => {
       recognition.maxAlternatives = 1;
       
       // تنظیمات اضافی برای تشخیص سریع‌تر
-      if (recognition.grammars) {
-        recognition.grammars = new SpeechGrammarList();
-      }
+      // if (recognition.grammars) {
+      //   recognition.grammars = new SpeechGrammarList();
+      // }
       
       // تنظیمات برای تشخیص سریع‌تر
-      if (recognition.serviceURI) {
-        recognition.serviceURI = 'https://www.google.com/speech-api/v2/recognize';
-      }
+      // if (recognition.serviceURI) {
+      //   recognition.serviceURI = 'https://www.google.com/speech-api/v2/recognize';
+      // }
 
       // تنظیمات تشخیص صوت - بهینه‌سازی برای سرعت بالا
       recognition.continuous = true; // تشخیص مداوم
@@ -144,14 +143,14 @@ const SpeechToText = () => {
       recognition.maxAlternatives = 1;
       
       // تنظیمات اضافی برای سرعت بیشتر
-      if (recognition.grammars) {
-        recognition.grammars = new SpeechGrammarList();
-      }
+      // if (recognition.grammars) {
+      //   recognition.grammars = new SpeechGrammarList();
+      // }
       
       // تنظیمات برای تشخیص سریع‌تر
-      if (recognition.serviceURI) {
-        recognition.serviceURI = 'https://www.google.com/speech-api/v2/recognize';
-      }
+      // if (recognition.serviceURI) {
+      //   recognition.serviceURI = 'https://www.google.com/speech-indexedDB';
+      // }
 
       // دریافت stream برای نمایش سطح صدا
       const constraints = {
@@ -426,7 +425,6 @@ const SpeechToText = () => {
         return;
       }
 
-      setAudioBlob(file);
       transcribeAudio(file);
     }
   };
@@ -463,7 +461,6 @@ const SpeechToText = () => {
   const clearText = () => {
     setTranscribedText('');
     setRealTimeText('');
-    setAudioBlob(null);
     toast.success('متن پاک شد');
   };
 

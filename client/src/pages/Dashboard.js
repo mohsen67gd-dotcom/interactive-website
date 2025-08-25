@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { MessageCircle, Award, Clock, TrendingUp, Users, Calendar, CheckCircle } from 'lucide-react';
+import { MessageCircle, Award, Clock, TrendingUp, Users, Calendar, CheckCircle, Heart } from 'lucide-react';
 import axios from 'axios';
 
 const Dashboard = () => {
@@ -9,13 +9,36 @@ const Dashboard = () => {
   const [surveys, setSurveys] = useState([]);
   const [exams, setExams] = useState([]);
   const [examResults, setExamResults] = useState([]);
+  const [coupleGameResults, setCoupleGameResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalSurveys: 0,
     totalExams: 0,
     completedSurveys: 0,
-    completedExams: 0
+    completedExams: 0,
+    completedCoupleGames: 0
   });
+
+  // تابع کمکی برای نمایش تاریخ و زمان
+  const formatDateTime = (dateString) => {
+    try {
+      if (!dateString) return 'نامشخص';
+      
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'نامشخص';
+      
+      return {
+        date: date.toLocaleDateString('fa-IR'),
+        time: date.toLocaleTimeString('fa-IR', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        })
+      };
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return { date: 'نامشخص', time: 'نامشخص' };
+    }
+  };
 
   useEffect(() => {
     fetchDashboardData();
@@ -23,21 +46,24 @@ const Dashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
-      const [surveysRes, examsRes] = await Promise.all([
+      const [surveysRes, examsRes, coupleGameResultsRes] = await Promise.all([
         axios.get('/api/surveys'),
-        axios.get('/api/exams')
+        axios.get('/api/exams'),
+        axios.get('/api/couple-games/my-results')
       ]);
 
       setSurveys(surveysRes.data || []);
       setExams(examsRes.data || []);
       setExamResults([]); // We'll implement this later
+      setCoupleGameResults(coupleGameResultsRes.data || []);
 
       // Calculate stats
       setStats({
         totalSurveys: surveysRes.data?.length || 0,
         totalExams: examsRes.data?.length || 0,
         completedSurveys: 0, // Will be implemented later
-        completedExams: 0 // Will be implemented later
+        completedExams: 0, // Will be implemented later
+        completedCoupleGames: coupleGameResultsRes.data?.length || 0
       });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -75,7 +101,7 @@ const Dashboard = () => {
       </div>
 
       {/* Stats Section */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8 sm:mb-12 animate-slide-up">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 mb-8 sm:mb-12 animate-slide-up">
         <div className="card-hover p-4 sm:p-6 text-center">
           <div className="flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-primary-100 rounded-full mx-auto mb-3">
             <MessageCircle className="w-6 h-6 sm:w-8 sm:h-8 text-primary-600" />
@@ -90,6 +116,14 @@ const Dashboard = () => {
           </div>
           <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-1">{stats.totalExams}</h3>
           <p className="text-sm text-gray-600">آزمون</p>
+        </div>
+
+        <div className="card-hover p-4 sm:p-6 text-center">
+          <div className="flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-pink-100 rounded-full mx-auto mb-3">
+            <Heart className="w-6 h-6 sm:w-8 sm:h-8 text-pink-600" />
+          </div>
+          <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-1">{stats.completedCoupleGames}</h3>
+          <p className="text-sm text-gray-600">بازی زوج</p>
         </div>
 
         <div className="card-hover p-4 sm:p-6 text-center">
@@ -238,6 +272,122 @@ const Dashboard = () => {
         )}
       </div>
 
+      {/* Couple Games Section */}
+      <div className="mb-8 sm:mb-12 animate-slide-up">
+        <div className="flex items-center justify-between mb-4 sm:mb-6">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center">
+            <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 bg-pink-100 rounded-lg mr-3">
+              <Heart className="w-5 h-5 sm:w-6 sm:h-6 text-pink-600" />
+            </div>
+            بازی‌های زوج‌شناسی
+          </h2>
+          <Link
+            to="/couple-games"
+            className="btn-primary text-sm px-4 py-2 hover-lift flex items-center space-x-2 space-x-reverse"
+          >
+            <Heart size={16} />
+            <span>مشاهده همه</span>
+          </Link>
+        </div>
+        
+        <div className="card p-4 sm:p-6">
+          <div className="text-center py-8">
+            <Heart className="w-16 h-16 text-pink-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">بازی زوج‌شناسی</h3>
+            <p className="text-gray-600 mb-4">با همسر خود در بازی‌های جذاب شرکت کنید</p>
+            <Link
+              to="/couple-games"
+              className="btn-primary px-6 py-3 hover-lift"
+            >
+              شروع بازی
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Couple Game Results */}
+      {coupleGameResults.length > 0 && (
+        <div className="mb-8 sm:mb-12 animate-slide-up">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6 flex items-center">
+            <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 bg-pink-100 rounded-lg mr-3">
+              <Heart className="w-5 h-5 sm:w-6 sm:h-6 text-pink-600" />
+            </div>
+            نتایج بازی‌های زوج‌شناسی
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            {coupleGameResults.slice(0, 6).map((result, index) => (
+              <div 
+                key={result.id} 
+                className="card p-4 sm:p-6 animate-scale-in hover:shadow-lg transition-shadow duration-200"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-800 line-clamp-2">{result.gameTitle}</h3>
+                  <div className="flex items-center space-x-1 space-x-reverse">
+                    <Heart size={16} className="text-pink-500" />
+                  </div>
+                </div>
+                
+                <div className="space-y-3 mb-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">درصد تشابه:</span>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      result.similarityPercentage >= 80 ? 'bg-green-100 text-green-800' :
+                      result.similarityPercentage >= 60 ? 'bg-yellow-100 text-yellow-800' :
+                      result.similarityPercentage >= 40 ? 'bg-orange-100 text-orange-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {result.similarityPercentage}%
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">پاسخ‌های مشابه:</span>
+                    <span className="font-medium text-gray-800">
+                      {result.matchingAnswers} از {result.totalQuestions}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">همسر:</span>
+                    <span className="font-medium text-gray-800">
+                      {result.partner1._id.toString() === user._id ? 
+                        `${result.partner2.firstName} ${result.partner2.lastName}` : 
+                        `${result.partner1.firstName} ${result.partner1.lastName}`
+                      }
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-gray-200">
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <div className="flex items-center">
+                      <Calendar size={12} className="mr-1" />
+                      <span>{formatDateTime(result.completedAt).date}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <Clock size={12} className="mr-1" />
+                      <span>{formatDateTime(result.completedAt).time}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          {coupleGameResults.length > 6 && (
+            <div className="text-center mt-6">
+              <Link
+                to="/couple-games"
+                className="btn-primary px-6 py-3 hover-lift"
+              >
+                مشاهده همه نتایج
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Recent Results */}
       {examResults.length > 0 && (
         <div className="mb-8 sm:mb-12 animate-slide-up">
@@ -281,7 +431,7 @@ const Dashboard = () => {
                         </span>
                       </td>
                       <td className="py-3 px-4 text-gray-600 text-xs">
-                        {new Date(result.submittedAt).toLocaleDateString('fa-IR')}
+                        {formatDateTime(result.submittedAt).date}
                       </td>
                     </tr>
                   ))}

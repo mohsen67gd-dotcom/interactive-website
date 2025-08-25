@@ -34,6 +34,12 @@ app.use('/api/exams', require('./routes/exams'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/speech-to-text', require('./routes/speechToText'));
+app.use('/api/couple-games', require('./routes/coupleGames'));
+app.use('/api/news', require('./routes/news'));
+app.use('/api/education', require('./routes/education'));
+app.use('/api/appointments', require('./routes/appointments'));
+app.use('/api/consultations', require('./routes/consultations'));
+app.use('/api/upload', require('./routes/upload'));
 
 // Serve static files from React build
 if (process.env.NODE_ENV === 'production') {
