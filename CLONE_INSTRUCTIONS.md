@@ -1,11 +1,19 @@
 # راهنمای کلون کردن پروژه
 
-## کلون کردن با SSH
+## کلون کردن با HTTPS
 
 برای کلون کردن این پروژه در جای دیگر، از دستور زیر استفاده کنید:
 
 ```bash
-git clone git@github.com:mohsen67gd-dotcom/baharneku.git
+git clone https://github.com/mohsen67gd-dotcom/interactive-website.git
+```
+
+## کلون کردن با SSH
+
+اگر SSH key تنظیم کرده‌اید:
+
+```bash
+git clone git@github.com:mohsen67gd-dotcom/interactive-website.git
 ```
 
 ## تنظیم SSH Key
@@ -41,7 +49,7 @@ ssh -T git@github.com
 ## ساختار پروژه
 
 ```
-baharneku/
+interactive-website/
 ├── client/                 # فرانت‌اند React
 ├── routes/                 # API routes
 ├── models/                 # Mongoose models
@@ -94,3 +102,9 @@ cd client && npm start
 - **Backend**: 5000
 - **Frontend**: 3000
 - **Database**: 27017 (MongoDB)
+
+## Repository URL
+
+**HTTPS**: https://github.com/mohsen67gd-dotcom/interactive-website.git
+**SSH**: git@github.com:mohsen67gd-dotcom/interactive-website.git
+
