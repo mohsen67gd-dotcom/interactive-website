@@ -46,8 +46,9 @@ router.post('/image', upload.single('image'), (req, res) => {
       return res.status(400).json({ message: 'فایل تصویری انتخاب نشده است' });
     }
 
-    // URL تصویر آپلود شده
-    const imageUrl = `/uploads/images/${req.file.filename}`;
+    // URL تصویر آپلود شده - استفاده از URL کامل
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const imageUrl = `${baseUrl}/uploads/images/${req.file.filename}`;
     
     res.json({
       message: 'تصویر با موفقیت آپلود شد',

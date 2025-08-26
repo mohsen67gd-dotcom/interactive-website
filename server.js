@@ -41,6 +41,9 @@ app.use('/api/appointments', require('./routes/appointments'));
 app.use('/api/consultations', require('./routes/consultations'));
 app.use('/api/upload', require('./routes/upload'));
 
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Serve static files from React build
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, 'client/build')));
